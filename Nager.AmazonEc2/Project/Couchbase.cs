@@ -227,24 +227,26 @@ namespace Nager.AmazonEc2.Project
             {
                 var blockDeviceMappingSystem = new BlockDeviceMapping
                 {
-                    DeviceName = "/dev/sda1",
+                    DeviceName = "/dev/xvda",
                     Ebs = new EbsBlockDevice
                     {
                         DeleteOnTermination = true,
+                        Encrypted = true,
                         VolumeType = VolumeType.Gp2,
-                        VolumeSize = 12
+                        VolumeSize = 12,
                     }
                 };
 
                 var blockDeviceMappingData = new BlockDeviceMapping
                 {
-                    DeviceName = "/dev/sda2",
+                    DeviceName = "/dev/sdb",
                     Ebs = new EbsBlockDevice
                     {
                         DeleteOnTermination = true,
-                        VolumeType = VolumeType.Io1,
+                        Encrypted = true,
                         Iops = 100,
-                        VolumeSize = (int)Math.Ceiling(instanceInfo.Memory * 2)
+                        VolumeType = VolumeType.Io1,
+                        VolumeSize = (int)Math.Ceiling(instanceInfo.Memory * 2),  
                     }
                 };
 
@@ -296,9 +298,13 @@ namespace Nager.AmazonEc2.Project
             items.Add("echo \"  echo never > /sys/kernel/mm/transparent_hugepage/defrag\" >> /etc/rc.local");
             items.Add("echo \"fi\" >> /etc/rc.local");
 
-            //Install Couchbase
-            items.Add("curl -O -s http://packages.couchbase.com/releases/4.5.0/couchbase-server-enterprise-4.5.0-centos7.x86_64.rpm");
-            items.Add("rpm -i couchbase-server-enterprise-4.5.0-centos7.x86_64.rpm");
+            //Install Couchbase Enterprise
+            //items.Add("curl -O -s http://packages.couchbase.com/releases/4.5.0/couchbase-server-enterprise-4.5.0-centos7.x86_64.rpm");
+            //items.Add("rpm -i couchbase-server-enterprise-4.5.0-centos7.x86_64.rpm");
+
+            //Install Couchbase Community
+            items.Add("curl -O -s http://packages.couchbase.com/releases/4.1.0/couchbase-server-community-4.1.0-centos7.x86_64.rpm");
+            items.Add("rpm -i couchbase-server-community-4.1.0-centos7.x86_64.rpm");
 
             items.Add("mkdir /data/couchbase");
             items.Add("chown couchbase:couchbase /data/couchbase -R");
@@ -316,16 +322,16 @@ namespace Nager.AmazonEc2.Project
             //Change data path
             items.Add("/opt/couchbase/bin/couchbase-cli node-init -c localhost:8091 -u Administrator -p password --node-init-data-path=/data/couchbase");
 
+            return items;
+
             if (String.IsNullOrEmpty(clusterIpAddress))
             {
-                var dataRamSize = 256;
-                var indexRamSize = 256;
+                var totalMemory = instanceInfo.Memory * 1000;
+                //Allocating max 60% recommend
+                var availableMemory = totalMemory / 100 * 60;
 
-                if (instanceInfo.Memory > 6)
-                {
-                    dataRamSize = ((int)instanceInfo.Memory - 4) * 1000;
-                    indexRamSize = 2 * 1000;
-                }
+                var dataRamSize = (availableMemory / 100 * 80); //80%
+                var indexRamSize = availableMemory / 100 * 20; //20%
 
                 items.Add($"/opt/couchbase/bin/couchbase-cli cluster-init -c localhost --cluster-username={adminUsername} --cluster-password={adminPassword} --cluster-ramsize={dataRamSize} --cluster-index-ramsize={indexRamSize} --services=data,index");
             }
