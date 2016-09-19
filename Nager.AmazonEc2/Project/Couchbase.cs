@@ -2,6 +2,7 @@
 using Amazon.EC2.Model;
 using log4net;
 using Nager.AmazonEc2.Helper;
+using Nager.AmazonEc2.InstallScript;
 using Nager.AmazonEc2.Model;
 using System;
 using System.Collections.Generic;
@@ -197,24 +198,26 @@ namespace Nager.AmazonEc2.Project
             Log.Debug("InstallCluster");
 
             var securityGroupId = this.CreateSecurityGroup(clusterConfig.Prefix);
+            var instanceInfo = InstanceInfoHelper.GetInstanceInfo(clusterConfig.NodeInstance);
 
             var installResults = new List<InstallResult>();
-            var result = InstallNode(clusterConfig.NodeInstance, $"{clusterConfig.ClusterName}.node0", securityGroupId, clusterConfig.KeyName, null, clusterConfig.AdminUsername, clusterConfig.AdminPassword);
+
+            var installScript = this.CreateInstallScript(null, clusterConfig.AdminUsername, clusterConfig.AdminPassword, instanceInfo);
+            var result = this.InstallNode(instanceInfo, $"{clusterConfig.ClusterName}.node0", securityGroupId, clusterConfig.KeyName, installScript);
             installResults.Add(result);
 
             for (var i = 1; i < clusterConfig.NodeCount; i++)
             {
-                var resultSlave = InstallNode(clusterConfig.NodeInstance, $"{clusterConfig.ClusterName}.node{i}", securityGroupId, clusterConfig.KeyName, result.PrivateIpAddress, clusterConfig.AdminUsername, clusterConfig.AdminPassword);
+                installScript = this.CreateInstallScript(result.PrivateIpAddress, clusterConfig.AdminUsername, clusterConfig.AdminPassword, instanceInfo);
+                var resultSlave = this.InstallNode(instanceInfo, $"{clusterConfig.ClusterName}.node{i}", securityGroupId, clusterConfig.KeyName, installScript);
                 installResults.Add(resultSlave);
             }
 
             return installResults;
         }
 
-        public InstallResult InstallNode(AmazonInstance amazonInstance, string name, string securityGroupId, string keyName, string clusterIpAddress, string adminUsername, string adminPassword)
+        public InstallResult InstallNode(AmazonInstanceInfo instanceInfo, string name, string securityGroupId, string keyName, IInstallScript installScript)
         {
-            var instanceInfo = InstanceInfoHelper.GetInstanceInfo(amazonInstance);
-
             var instanceRequest = new RunInstancesRequest();
             instanceRequest.ImageId = "ami-7abd0209"; //centos
             instanceRequest.InstanceType = instanceInfo.InstanceType;
@@ -223,40 +226,37 @@ namespace Nager.AmazonEc2.Project
             instanceRequest.KeyName = keyName;
             instanceRequest.SecurityGroupIds = new List<string>() { securityGroupId };
 
-            if (!instanceInfo.LocalStorage)
+            var blockDeviceMappingSystem = new BlockDeviceMapping
             {
-                var blockDeviceMappingSystem = new BlockDeviceMapping
+                DeviceName = "/dev/xvda",
+                Ebs = new EbsBlockDevice
                 {
-                    DeviceName = "/dev/xvda",
-                    Ebs = new EbsBlockDevice
-                    {
-                        DeleteOnTermination = true,
-                        Encrypted = true,
-                        VolumeType = VolumeType.Gp2,
-                        VolumeSize = 12,
-                    }
-                };
+                    DeleteOnTermination = true,
+                    Encrypted = true,
+                    VolumeType = VolumeType.Gp2,
+                    VolumeSize = 12,
+                }
+            };
 
-                var blockDeviceMappingData = new BlockDeviceMapping
+            var blockDeviceMappingData = new BlockDeviceMapping
+            {
+                DeviceName = "/dev/sdb",
+                Ebs = new EbsBlockDevice
                 {
-                    DeviceName = "/dev/sdb",
-                    Ebs = new EbsBlockDevice
-                    {
-                        DeleteOnTermination = true,
-                        Encrypted = true,
-                        Iops = 100,
-                        VolumeType = VolumeType.Io1,
-                        VolumeSize = (int)Math.Ceiling(instanceInfo.Memory * 2),  
-                    }
-                };
+                    DeleteOnTermination = true,
+                    Encrypted = true,
+                    Iops = 100,
+                    VolumeType = VolumeType.Io1,
+                    VolumeSize = (int)Math.Ceiling(instanceInfo.Memory * 2),  
+                }
+            };
 
-                instanceRequest.BlockDeviceMappings.Add(blockDeviceMappingSystem);
-                instanceRequest.BlockDeviceMappings.Add(blockDeviceMappingData);
-            }
+            instanceRequest.BlockDeviceMappings.Add(blockDeviceMappingSystem);
+            instanceRequest.BlockDeviceMappings.Add(blockDeviceMappingData);
 
             //Install Process can check in this log file
             //</var/log/cloud-init-output.log>
-            instanceRequest.UserData = InstallScriptHelper.CreateLinuxScript(GetInstallScript(clusterIpAddress, adminUsername, adminPassword, instanceInfo));
+            instanceRequest.UserData = installScript.Create();
 
             var response = this._client.RunInstances(instanceRequest);
             var instance = response.Reservation.Instances.First();
@@ -277,52 +277,50 @@ namespace Nager.AmazonEc2.Project
             return installResult;
         }
 
-        private static List<string> GetInstallScript(string clusterIpAddress, string adminUsername, string adminPassword, AmazonInstanceInfo instanceInfo)
+        public CentOSInstallScript CreateInstallScript(string clusterIpAddress, string adminUsername, string adminPassword, AmazonInstanceInfo instanceInfo)
         {
-            var items = new List<string>();
+            var installScript = new CentOSInstallScript();
 
             //Prepare Data Disk
-            items.AddRange(InstallScriptHelper.PrepareDataDisk());
+            installScript.PrepareDataDisk();
 
             //Disable Swap
-            items.Add("sysctl vm.swappiness=1");
-            items.Add("echo \"vm.swappiness = 1\" >> /etc/sysctl.conf");
+            installScript.Add("sysctl vm.swappiness=1");
+            installScript.Add("echo \"vm.swappiness = 1\" >> /etc/sysctl.conf");
 
-            items.Add("echo never > /sys/kernel/mm/transparent_hugepage/enabled");
-            items.Add("echo \"if test -f /sys/kernel/mm/transparent_hugepage/enabled; then\" >> /etc/rc.local");
-            items.Add("echo \"  echo never > /sys/kernel/mm/transparent_hugepage/enabled\" >> /etc/rc.local");
-            items.Add("echo \"fi\" >> /etc/rc.local");
+            installScript.Add("echo never > /sys/kernel/mm/transparent_hugepage/enabled");
+            installScript.Add("echo \"if test -f /sys/kernel/mm/transparent_hugepage/enabled; then\" >> /etc/rc.local");
+            installScript.Add("echo \"  echo never > /sys/kernel/mm/transparent_hugepage/enabled\" >> /etc/rc.local");
+            installScript.Add("echo \"fi\" >> /etc/rc.local");
 
-            items.Add("echo never > /sys/kernel/mm/transparent_hugepage/defrag");
-            items.Add("echo \"if test -f /sys/kernel/mm/transparent_hugepage/defrag; then\" >> /etc/rc.local");
-            items.Add("echo \"  echo never > /sys/kernel/mm/transparent_hugepage/defrag\" >> /etc/rc.local");
-            items.Add("echo \"fi\" >> /etc/rc.local");
+            installScript.Add("echo never > /sys/kernel/mm/transparent_hugepage/defrag");
+            installScript.Add("echo \"if test -f /sys/kernel/mm/transparent_hugepage/defrag; then\" >> /etc/rc.local");
+            installScript.Add("echo \"  echo never > /sys/kernel/mm/transparent_hugepage/defrag\" >> /etc/rc.local");
+            installScript.Add("echo \"fi\" >> /etc/rc.local");
 
             //Install Couchbase Enterprise
             //items.Add("curl -O -s http://packages.couchbase.com/releases/4.5.0/couchbase-server-enterprise-4.5.0-centos7.x86_64.rpm");
             //items.Add("rpm -i couchbase-server-enterprise-4.5.0-centos7.x86_64.rpm");
 
             //Install Couchbase Community
-            items.Add("curl -O -s http://packages.couchbase.com/releases/4.1.0/couchbase-server-community-4.1.0-centos7.x86_64.rpm");
-            items.Add("rpm -i couchbase-server-community-4.1.0-centos7.x86_64.rpm");
+            installScript.Add("curl -O -s http://packages.couchbase.com/releases/4.1.0/couchbase-server-community-4.1.0-centos7.x86_64.rpm");
+            installScript.Add("rpm -i couchbase-server-community-4.1.0-centos7.x86_64.rpm");
 
-            items.Add("mkdir /data/couchbase");
-            items.Add("chown couchbase:couchbase /data/couchbase -R");
+            installScript.Add("mkdir /data/couchbase");
+            installScript.Add("chown couchbase:couchbase /data/couchbase -R");
 
-            items.Add("sudo yum install openssl098e");
+            installScript.Add("sudo yum install openssl098e");
 
-            items.Add("service couchbase-server start");
+            installScript.Add("service couchbase-server start");
 
             //Wait for webinterface
-            items.Add("until $(curl --output /dev/null --silent --head --fail http://localhost:8091); do");
-            items.Add("  printf '.'");
-            items.Add("  sleep 5");
-            items.Add("done");
+            installScript.Add("until $(curl --output /dev/null --silent --head --fail http://localhost:8091); do");
+            installScript.Add("  printf '.'");
+            installScript.Add("  sleep 5");
+            installScript.Add("done");
 
             //Change data path
-            items.Add("/opt/couchbase/bin/couchbase-cli node-init -c localhost:8091 -u Administrator -p password --node-init-data-path=/data/couchbase");
-
-            return items;
+            installScript.Add("/opt/couchbase/bin/couchbase-cli node-init -c localhost:8091 -u Administrator -p password --node-init-data-path=/data/couchbase");
 
             if (String.IsNullOrEmpty(clusterIpAddress))
             {
@@ -333,23 +331,23 @@ namespace Nager.AmazonEc2.Project
                 var dataRamSize = (availableMemory / 100 * 80); //80%
                 var indexRamSize = availableMemory / 100 * 20; //20%
 
-                items.Add($"/opt/couchbase/bin/couchbase-cli cluster-init -c localhost --cluster-username={adminUsername} --cluster-password={adminPassword} --cluster-ramsize={dataRamSize} --cluster-index-ramsize={indexRamSize} --services=data,index");
+                installScript.Add($"/opt/couchbase/bin/couchbase-cli cluster-init -c localhost --cluster-username={adminUsername} --cluster-password={adminPassword} --cluster-ramsize={dataRamSize} --cluster-index-ramsize={indexRamSize} --services=data,index");
             }
             else
             {
                 //Wait for master
-                items.Add($"until $(curl --output /dev/null --silent --head --fail http://{clusterIpAddress}:8091); do");
-                items.Add("  printf '.'");
-                items.Add("  sleep 5");
-                items.Add("done");
+                installScript.Add($"until $(curl --output /dev/null --silent --head --fail http://{clusterIpAddress}:8091); do");
+                installScript.Add("  printf '.'");
+                installScript.Add("  sleep 5");
+                installScript.Add("done");
 
-                items.Add("serverip=`/sbin/ifconfig eth0 | grep \"inet\" | awk '{print $2}' | awk 'NR==1' | cut -d':' -f2`");
+                installScript.Add("serverip=`/sbin/ifconfig eth0 | grep \"inet\" | awk '{print $2}' | awk 'NR==1' | cut -d':' -f2`");
                 //items.Add("echo $serverip");
-                items.Add($"/opt/couchbase/bin/couchbase-cli server-add -c {clusterIpAddress} -u {adminUsername} -p {adminPassword} --server-add=$serverip --server-add-username=Administrator --server-add-password=password --services=data,index");
-                items.Add($"/opt/couchbase/bin/couchbase-cli rebalance -c {clusterIpAddress} -u {adminUsername} -p {adminPassword}");
+                installScript.Add($"/opt/couchbase/bin/couchbase-cli server-add -c {clusterIpAddress} -u {adminUsername} -p {adminPassword} --server-add=$serverip --server-add-username=Administrator --server-add-password=password --services=data,index");
+                installScript.Add($"/opt/couchbase/bin/couchbase-cli rebalance -c {clusterIpAddress} -u {adminUsername} -p {adminPassword}");
             }
 
-            return items;
+            return installScript;
         }
     }
 }

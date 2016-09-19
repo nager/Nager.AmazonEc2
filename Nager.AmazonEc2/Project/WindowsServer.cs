@@ -2,6 +2,7 @@
 using Amazon.EC2.Model;
 using log4net;
 using Nager.AmazonEc2.Helper;
+using Nager.AmazonEc2.InstallScript;
 using Nager.AmazonEc2.Model;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +20,7 @@ namespace Nager.AmazonEc2.Project
             this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, Amazon.RegionEndpoint.EUWest1);
         }
 
-        public InstallResult Install(AmazonInstance amazonInstance, string name, string securityGroupId, string keyName)
+        public InstallResult Install(AmazonInstance amazonInstance, string name, string securityGroupId, string keyName, IInstallScript installScript)
         {
             var instanceInfo = InstanceInfoHelper.GetInstanceInfo(amazonInstance);
 
@@ -49,7 +50,7 @@ namespace Nager.AmazonEc2.Project
 
             //Install Process can check in this log file
             //<C:\Program Files\Amazon\Ec2ConfigService\Logs\Ec2ConfigLog.txt>
-            instanceRequest.UserData = InstallScriptHelper.CreateWindowsScript(GetInstallScript());
+            instanceRequest.UserData = installScript.Create();
 
             var response = this._client.RunInstances(instanceRequest);
             var instance = response.Reservation.Instances.First();
@@ -68,18 +69,6 @@ namespace Nager.AmazonEc2.Project
             }
 
             return installResult;
-        }
-
-        private static List<string> GetInstallScript()
-        {
-            var items = new List<string>();
-
-            items.Add("<powershell>");
-            items.Add("$user = [ADSI]\"WinNT://./Administrator\";");
-            items.Add("$user.SetPassword(\"TheNewPasswordGoesHere\");");
-            items.Add("</powershell>");
-
-            return items;
         }
     }
 }

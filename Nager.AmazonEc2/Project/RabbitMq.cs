@@ -2,6 +2,7 @@
 using Amazon.EC2.Model;
 using log4net;
 using Nager.AmazonEc2.Helper;
+using Nager.AmazonEc2.InstallScript;
 using Nager.AmazonEc2.Model;
 using System;
 using System.Collections.Generic;
@@ -148,24 +149,25 @@ namespace Nager.AmazonEc2.Project
 
             var securityGroupId = this.CreateSecurityGroup(clusterConfig.Prefix);
             var hash = Guid.NewGuid().ToString();
+            var instanceInfo = InstanceInfoHelper.GetInstanceInfo(clusterConfig.NodeInstance);
+            var installScript = this.GetInstallScript(hash, null, instanceInfo, clusterConfig.AdminUsername, clusterConfig.AdminPassword);
 
             var installResults = new List<InstallResult>();
-            var result = InstallNode(clusterConfig.NodeInstance, $"{clusterConfig.ClusterName}.node0", securityGroupId, hash, null, clusterConfig.AdminUsername, clusterConfig.AdminPassword, clusterConfig.KeyName);
+            var result = this.InstallNode(instanceInfo, $"{clusterConfig.ClusterName}.node0", securityGroupId, clusterConfig.KeyName, installScript);
             installResults.Add(result);
 
             for (var i = 1; i < clusterConfig.NodeCount; i++)
             {
-                var resultSlave = InstallNode(clusterConfig.NodeInstance, $"{clusterConfig.ClusterName}.node{i}", securityGroupId, hash, result.PrivateIpAddress, clusterConfig.AdminUsername, clusterConfig.AdminPassword, clusterConfig.KeyName);
+                installScript = this.GetInstallScript(hash, result.PrivateIpAddress, instanceInfo, clusterConfig.AdminUsername, clusterConfig.AdminPassword);
+                var resultSlave = this.InstallNode(instanceInfo, $"{clusterConfig.ClusterName}.node0", securityGroupId, clusterConfig.KeyName, installScript);
                 installResults.Add(resultSlave);
             }
 
             return installResults;
         }
 
-        public InstallResult InstallNode(AmazonInstance amazonInstance, string nodeName, string securityGroupId, string erlangCookie, string clusterNodeIpAddress, string adminUsername, string adminPassword, string keyName)
+        public InstallResult InstallNode(AmazonInstanceInfo instanceInfo, string nodeName, string securityGroupId, string keyName, IInstallScript installScript)
         {
-            var instanceInfo = InstanceInfoHelper.GetInstanceInfo(amazonInstance);
-
             var instanceRequest = new RunInstancesRequest();
             instanceRequest.ImageId = "ami-7abd0209"; //centos
             instanceRequest.InstanceType = instanceInfo.InstanceType;
@@ -202,7 +204,7 @@ namespace Nager.AmazonEc2.Project
 
             //Install Process can check in this log file
             //</var/log/cloud-init-output.log>
-            instanceRequest.UserData = InstallScriptHelper.CreateLinuxScript(GetInstallScript(erlangCookie, clusterNodeIpAddress, instanceInfo, adminUsername, adminPassword));
+            instanceRequest.UserData = installScript.Create();
 
             var response = this._client.RunInstances(instanceRequest);
 
@@ -224,77 +226,77 @@ namespace Nager.AmazonEc2.Project
             return installResult;
         }
 
-        private static List<string> GetInstallScript(string erlangCookie, string clusterNodeIpAddress, AmazonInstanceInfo instanceInfo, string adminUsername, string adminPassword)
+        public CentOSInstallScript GetInstallScript(string erlangCookie, string clusterNodeIpAddress, AmazonInstanceInfo instanceInfo, string adminUsername, string adminPassword)
         {
-            var items = new List<string>();
+            var installScript = new CentOSInstallScript();
 
             //Prepare Data Disk
-            items.AddRange(InstallScriptHelper.PrepareDataDisk());
+            installScript.PrepareDataDisk();
 
             //Set Environment Variables - Erlang needed
-            items.Add("export HOME=/tmp");
+            installScript.Add("export HOME=/tmp");
 
             //Erlang install
-            items.Add("curl -O -s http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-8.noarch.rpm");
-            items.Add("rpm -i epel-release-7-8.noarch.rpm");
-            items.Add("yum install erlang -y --enablerepo=epel");
+            installScript.Add("curl -O -s http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-8.noarch.rpm");
+            installScript.Add("rpm -i epel-release-7-8.noarch.rpm");
+            installScript.Add("yum install erlang -y --enablerepo=epel");
 
             //RabbitMQ
-            items.Add("yum install socat -y");
-            items.Add("curl -O -s https://www.rabbitmq.com/releases/rabbitmq-server/v3.6.5/rabbitmq-server-3.6.5-1.noarch.rpm");
-            items.Add("rpm -Uvh rabbitmq-server-3.6.5-1.noarch.rpm");
+            installScript.Add("yum install socat -y");
+            installScript.Add("curl -O -s https://www.rabbitmq.com/releases/rabbitmq-server/v3.6.5/rabbitmq-server-3.6.5-1.noarch.rpm");
+            installScript.Add("rpm -Uvh rabbitmq-server-3.6.5-1.noarch.rpm");
 
             //RabbitMQ - Enable managament plugin
-            items.Add("rabbitmq-plugins enable rabbitmq_management");
+            installScript.Add("rabbitmq-plugins enable rabbitmq_management");
 
             #region  RabbitMQ Config
 
             //rabbitmq.config
-            items.Add("cat <<EOT >> /etc/rabbitmq/rabbitmq.config");
-            items.Add("[");
-            items.Add("  {");
-            items.Add("  rabbit,");
-            items.Add("  [");
-            items.Add("    { vm_memory_high_watermark, 0.8 },");
-            items.Add("    { disk_free_limit, {mem_relative, 0.5} }");
-            items.Add("  ]");
-            items.Add("  }");
-            items.Add("].");
-            items.Add("EOT");
+            installScript.Add("cat <<EOT >> /etc/rabbitmq/rabbitmq.config");
+            installScript.Add("[");
+            installScript.Add("  {");
+            installScript.Add("  rabbit,");
+            installScript.Add("  [");
+            installScript.Add("    { vm_memory_high_watermark, 0.8 },");
+            installScript.Add("    { disk_free_limit, {mem_relative, 0.5} }");
+            installScript.Add("  ]");
+            installScript.Add("  }");
+            installScript.Add("].");
+            installScript.Add("EOT");
 
             //rabbitmq-env.conf
-            items.Add("cat <<EOT >> /etc/rabbitmq/rabbitmq-env.conf");
-            items.Add("RABBITMQ_MNESIA_BASE=/data/rabbitmq");
-            items.Add("ulimit -S -n 4096");
-            items.Add("EOT");
+            installScript.Add("cat <<EOT >> /etc/rabbitmq/rabbitmq-env.conf");
+            installScript.Add("RABBITMQ_MNESIA_BASE=/data/rabbitmq");
+            installScript.Add("ulimit -S -n 4096");
+            installScript.Add("EOT");
 
             #endregion
 
             //Add Cookie for Cluster
-            items.Add($"echo \"{erlangCookie}\" > /var/lib/rabbitmq/.erlang.cookie");
-            items.Add("chown rabbitmq:rabbitmq /var/lib/rabbitmq/.erlang.cookie");
-            items.Add("chmod 400 /var/lib/rabbitmq/.erlang.cookie");
+            installScript.Add($"echo \"{erlangCookie}\" > /var/lib/rabbitmq/.erlang.cookie");
+            installScript.Add("chown rabbitmq:rabbitmq /var/lib/rabbitmq/.erlang.cookie");
+            installScript.Add("chmod 400 /var/lib/rabbitmq/.erlang.cookie");
 
             //Autostart Service
-            items.Add("chkconfig rabbitmq-server on");
+            installScript.Add("chkconfig rabbitmq-server on");
 
             //Create Data Directory
-            items.Add("mkdir /data/rabbitmq/");
-            items.Add("chown rabbitmq:rabbitmq /data/rabbitmq/");
+            installScript.Add("mkdir /data/rabbitmq/");
+            installScript.Add("chown rabbitmq:rabbitmq /data/rabbitmq/");
 
             //SELinux Config
-            items.Add("semanage fcontext -a -t rabbitmq_var_lib_t \"/data(/.*)?\"");
-            items.Add("restorecon -Rv / data");
+            installScript.Add("semanage fcontext -a -t rabbitmq_var_lib_t \"/data(/.*)?\"");
+            installScript.Add("restorecon -Rv / data");
 
             //RabbitMQ - Start service
-            items.Add("service rabbitmq-server start");
+            installScript.Add("service rabbitmq-server start");
 
             //RabbitMQ - User Configuration
             if (String.IsNullOrEmpty(clusterNodeIpAddress))
             {
-                items.Add($"rabbitmqctl add_user {adminUsername} {adminPassword}");
-                items.Add($"rabbitmqctl set_permissions {adminUsername} \".*\" \".*\" \".*\"");
-                items.Add($"rabbitmqctl set_user_tags {adminUsername} administrator");
+                installScript.Add($"rabbitmqctl add_user {adminUsername} {adminPassword}");
+                installScript.Add($"rabbitmqctl set_permissions {adminUsername} \".*\" \".*\" \".*\"");
+                installScript.Add($"rabbitmqctl set_user_tags {adminUsername} administrator");
             }
 
             //Cluster Add
@@ -303,13 +305,13 @@ namespace Nager.AmazonEc2.Project
                 var ip = clusterNodeIpAddress.Replace('.', '-');
                 var clusterNode = $"rabbit@ip-{ip}";
 
-                items.Add("rabbitmqctl stop_app");
-                items.Add("rabbitmqctl reset");
-                items.Add($"rabbitmqctl join_cluster {clusterNode}");
-                items.Add("rabbitmqctl start_app");
+                installScript.Add("rabbitmqctl stop_app");
+                installScript.Add("rabbitmqctl reset");
+                installScript.Add($"rabbitmqctl join_cluster {clusterNode}");
+                installScript.Add("rabbitmqctl start_app");
             }
 
-            return items;
+            return installScript;
         }
     }
 }

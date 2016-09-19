@@ -2,6 +2,7 @@
 using Amazon.EC2.Model;
 using log4net;
 using Nager.AmazonEc2.Helper;
+using Nager.AmazonEc2.InstallScript;
 using Nager.AmazonEc2.Model;
 using System;
 using System.Collections.Generic;
@@ -119,34 +120,38 @@ namespace Nager.AmazonEc2.Project
             for (var i = 0; i < clusterConfig.MasterNodeCount; i++)
             {
                 var nodeName = $"{clusterConfig.ClusterName}.master{i}";
+                var instanceInfo = InstanceInfoHelper.GetInstanceInfo(clusterConfig.MasterNodeInstance);
+                var installScript = this.CreateInstallScript(clusterConfig.ClusterName, nodeName, true, false, instanceInfo, clusterConfig.DiscoveryAccessKey, clusterConfig.MasterNodeCount);
 
-                installResult = InstallNode(clusterConfig.MasterNodeInstance, clusterConfig.ClusterName, nodeName, true, false, securityGroupId, clusterConfig.DiscoveryAccessKey, clusterConfig.MasterNodeCount, clusterConfig.KeyName);
+                installResult = this.InstallNode(instanceInfo, clusterConfig.ClusterName, nodeName, securityGroupId, clusterConfig.KeyName, installScript);
                 installResults.Add(installResult);
             }
 
             for (var i = 0; i < clusterConfig.DataNodeCount; i++)
             {
                 var nodeName = $"{clusterConfig.ClusterName}.data{i}";
+                var instanceInfo = InstanceInfoHelper.GetInstanceInfo(clusterConfig.MasterNodeInstance);
+                var installScript = this.CreateInstallScript(clusterConfig.ClusterName, nodeName, false, true, instanceInfo, clusterConfig.DiscoveryAccessKey, clusterConfig.MasterNodeCount);
 
-                installResult = InstallNode(clusterConfig.DataNodeInstance, clusterConfig.ClusterName, nodeName, false, true, securityGroupId, clusterConfig.DiscoveryAccessKey, clusterConfig.MasterNodeCount, clusterConfig.KeyName);
+                installResult = this.InstallNode(instanceInfo, clusterConfig.ClusterName, nodeName, securityGroupId, clusterConfig.KeyName, installScript);
                 installResults.Add(installResult);
             }
 
             for (var i = 0; i < clusterConfig.ClientNodeCount; i++)
             {
                 var nodeName = $"{clusterConfig.ClusterName}.client{i}";
+                var instanceInfo = InstanceInfoHelper.GetInstanceInfo(clusterConfig.MasterNodeInstance);
+                var installScript = this.CreateInstallScript(clusterConfig.ClusterName, nodeName, false, false, instanceInfo, clusterConfig.DiscoveryAccessKey, clusterConfig.MasterNodeCount);
 
-                installResult = InstallNode(clusterConfig.ClientNodeInstance, clusterConfig.ClusterName, nodeName, false, false, securityGroupId, clusterConfig.DiscoveryAccessKey, clusterConfig.MasterNodeCount, clusterConfig.KeyName);
+                installResult = this.InstallNode(instanceInfo, clusterConfig.ClusterName, nodeName, securityGroupId, clusterConfig.KeyName, installScript);
                 installResults.Add(installResult);
             }
 
             return installResults;
         }
 
-        public InstallResult InstallNode(AmazonInstance amazonInstance, string clusterName, string name, bool masterNode, bool dataNode, string securityGroupId, AmazonAccessKey discoveryAccessKey, int minimumMasterNodes, string keyName)
+        public InstallResult InstallNode(AmazonInstanceInfo instanceInfo, string clusterName, string name, string securityGroupId, string keyName, IInstallScript installScript)
         {
-            var instanceInfo = InstanceInfoHelper.GetInstanceInfo(amazonInstance);
-
             var instanceRequest = new RunInstancesRequest();
             instanceRequest.ImageId = "ami-7abd0209"; //centos
             instanceRequest.InstanceType = instanceInfo.InstanceType;
@@ -183,7 +188,7 @@ namespace Nager.AmazonEc2.Project
 
             //Install Process can check in this log file
             //</var/log/cloud-init-output.log>
-            instanceRequest.UserData = InstallScriptHelper.CreateLinuxScript(GetInstallScript(clusterName, name, masterNode, dataNode, instanceInfo, discoveryAccessKey, minimumMasterNodes));
+            instanceRequest.UserData = installScript.Create();
 
             var response = this._client.RunInstances(instanceRequest);
             var instance = response.Reservation.Instances.First();
@@ -204,103 +209,102 @@ namespace Nager.AmazonEc2.Project
             return installResult;
         }
 
-        private static List<string> GetInstallScript(string clusterName, string nodeName, bool masterNode, bool dataNode, AmazonInstanceInfo instanceInfo, AmazonAccessKey accessKey, int minimumMasterNodes)
+        public CentOSInstallScript CreateInstallScript(string clusterName, string nodeName, bool masterNode, bool dataNode, AmazonInstanceInfo instanceInfo, AmazonAccessKey accessKey, int minimumMasterNodes)
         {
-            var items = new List<string>();
+            var installScript = new CentOSInstallScript();
 
             //Prepare Data Disk
-            items.AddRange(InstallScriptHelper.PrepareDataDisk());
+            installScript.PrepareDataDisk();
 
             //Disable Swap
             //(A swappiness of 1 is better than 0, since on some kernel versions a swappiness of 0 can invoke the OOM-killer)
-            items.Add("sysctl vm.swappiness=1");
-            items.Add("echo \"vm.swappiness = 1\" >> /etc/sysctl.conf");
+            installScript.Add("sysctl vm.swappiness=1");
+            installScript.Add("echo \"vm.swappiness = 1\" >> /etc/sysctl.conf");
 
             //Import Public Key
-            items.Add("rpm --import http://packages.elasticsearch.org/GPG-KEY-elasticsearch");
+            installScript.Add("rpm --import http://packages.elasticsearch.org/GPG-KEY-elasticsearch");
 
             #region V 2.X
 
-            items.Add("cat > /etc/yum.repos.d/elasticsearch.repo <<EOL");
-            items.Add("[elasticsearch-2.x]");
-            items.Add("name=Elasticsearch repository for 2.x packages");
-            items.Add("baseurl=http://packages.elastic.co/elasticsearch/2.x/centos");
-            items.Add("gpgcheck=1");
-            items.Add("gpgkey=http://packages.elasticsearch.org/GPG-KEY-elasticsearch");
-            items.Add("enabled=1");
-            items.Add("EOL");
+            installScript.Add("cat > /etc/yum.repos.d/elasticsearch.repo <<EOL");
+            installScript.Add("[elasticsearch-2.x]");
+            installScript.Add("name=Elasticsearch repository for 2.x packages");
+            installScript.Add("baseurl=http://packages.elastic.co/elasticsearch/2.x/centos");
+            installScript.Add("gpgcheck=1");
+            installScript.Add("gpgkey=http://packages.elasticsearch.org/GPG-KEY-elasticsearch");
+            installScript.Add("enabled=1");
+            installScript.Add("EOL");
 
             #endregion
 
-            items.Add("yum install java elasticsearch -y");
+            installScript.Add("yum install java elasticsearch -y");
 
             //Autostart Service
-            items.Add("chkconfig elasticsearch on");
+            installScript.Add("chkconfig elasticsearch on");
 
 
-            items.Add($"mkdir /data/{clusterName}");
-            items.Add($"chown elasticsearch:elasticsearch /data/{clusterName}");
+            installScript.Add($"mkdir /data/{clusterName}");
+            installScript.Add($"chown elasticsearch:elasticsearch /data/{clusterName}");
 
             #region Config file
 
-            items.Add("cat > /etc/elasticsearch/elasticsearch.yml <<EOL");
-            items.Add($"cluster.name: {clusterName}");
-            items.Add($"node.name: {nodeName}");
+            installScript.Add("cat > /etc/elasticsearch/elasticsearch.yml <<EOL");
+            installScript.Add($"cluster.name: {clusterName}");
+            installScript.Add($"node.name: {nodeName}");
 
-            items.Add($"node.master: {masterNode.ToString().ToLower()}");
-            items.Add($"node.data: {dataNode.ToString().ToLower()}");
+            installScript.Add($"node.master: {masterNode.ToString().ToLower()}");
+            installScript.Add($"node.data: {dataNode.ToString().ToLower()}");
 
-            items.Add("path.data: /data");
+            installScript.Add("path.data: /data");
 
-            items.Add("network.host: _ec2_"); //cloud-aws needed _ec2_
+            installScript.Add("network.host: _ec2_"); //cloud-aws needed _ec2_
 
-            items.Add("http.compression: true");
+            installScript.Add("http.compression: true");
 
-            items.Add("http.cors.enabled: true");
-            items.Add("http.cors.allow-origin: \"*\"");
+            installScript.Add("http.cors.enabled: true");
+            installScript.Add("http.cors.allow-origin: \"*\"");
 
-            items.Add("index.max_result_window: \"2147483647\"");
+            installScript.Add("index.max_result_window: \"2147483647\"");
 
             //AWS
 
-            items.Add("plugin.mandatory: cloud-aws");
-            items.Add($"cloud.aws.access_key: {accessKey.AccessKeyId}");
-            items.Add($"cloud.aws.secret_key: {accessKey.SecretKey}");
-            items.Add("cloud.aws.region: eu-west-1");
+            installScript.Add("plugin.mandatory: cloud-aws");
+            installScript.Add($"cloud.aws.access_key: {accessKey.AccessKeyId}");
+            installScript.Add($"cloud.aws.secret_key: {accessKey.SecretKey}");
+            installScript.Add("cloud.aws.region: eu-west-1");
 
-            items.Add("discovery.type: ec2");
-            //items.Add("discovery.ec2.groups: sg-9a0901fd");
-            items.Add($"discovery.ec2.tag.cluster: {clusterName}");
-            items.Add("discovery.ec2.host_type: private_ip");
-            items.Add("discovery.ec2.ping_timeout: 30s");
+            installScript.Add("discovery.type: ec2");
+            installScript.Add($"discovery.ec2.tag.cluster: {clusterName}");
+            installScript.Add("discovery.ec2.host_type: private_ip");
+            installScript.Add("discovery.ec2.ping_timeout: 30s");
 
             //AWS EC2 not support multicast
-            items.Add("discovery.zen.ping.multicast.enabled: false");
+            installScript.Add("discovery.zen.ping.multicast.enabled: false");
 
             //Minimum Master Nodes
-            items.Add($"discovery.zen.minimum_master_nodes: {minimumMasterNodes}");
+            installScript.Add($"discovery.zen.minimum_master_nodes: {minimumMasterNodes}");
 
             //This allows the JVM to lock its memory and prevent it from being swapped by the OS
-            items.Add("bootstrap.mlockall: true");
+            installScript.Add("bootstrap.mlockall: true");
 
             //disable allowing to delete indices via wildcards or _all
-            items.Add("action.destructive_requires_name: true");
+            installScript.Add("action.destructive_requires_name: true");
 
-            items.Add("EOL");
+            installScript.Add("EOL");
 
             #endregion
 
             var heapSize = (int)Math.Ceiling(instanceInfo.Memory / 2);
-            items.Add($"sed -i -e 's|#ES_HEAP_SIZE=2g|ES_HEAP_SIZE={heapSize}g|' /etc/sysconfig/elasticsearch");
+            installScript.Add($"sed -i -e 's|#ES_HEAP_SIZE=2g|ES_HEAP_SIZE={heapSize}g|' /etc/sysconfig/elasticsearch");
 
             //Insall Management Interface
-            items.Add("/usr/share/elasticsearch/bin/plugin install royrusso/elasticsearch-HQ");
-            items.Add("/usr/share/elasticsearch/bin/plugin install cloud-aws -b");
+            installScript.Add("/usr/share/elasticsearch/bin/plugin install royrusso/elasticsearch-HQ");
+            installScript.Add("/usr/share/elasticsearch/bin/plugin install cloud-aws -b");
 
             //Start Service
-            items.Add("service elasticsearch start");
+            installScript.Add("service elasticsearch start");
 
-            return items;
+            return installScript;
         }
     }
 }

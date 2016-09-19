@@ -57,9 +57,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="InstallScript\BaseInstallScript.cs" />
     <Compile Include="Helper\AccessKeyHelper.cs" />
-    <Compile Include="Helper\InstallScriptHelper.cs" />
     <Compile Include="Helper\InstanceInfoHelper.cs" />
+    <Compile Include="InstallScript\IInstallScript.cs" />
     <Compile Include="Model\AmazonAccessKey.cs" />
     <Compile Include="Model\AmazonInstance.cs" />
     <Compile Include="Model\AmazonInstanceInfo.cs" />
@@ -72,6 +73,8 @@
     <Compile Include="Project\RabbitMq.cs" />
     <Compile Include="Project\WindowsServer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="InstallScript\CentOSInstallScript.cs" />
+    <Compile Include="InstallScript\WindowsInstallScript.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
