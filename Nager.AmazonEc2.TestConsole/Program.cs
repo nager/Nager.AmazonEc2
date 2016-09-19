@@ -1,10 +1,5 @@
 ﻿using Nager.AmazonEc2.Model;
 using Nager.AmazonEc2.Project;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Nager.AmazonEc2.TestConsole
 {

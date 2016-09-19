@@ -5,7 +5,7 @@ Nager.AmazonEC2
 * Couchbase Cluster Installation
 * Elasticsearch Cluster Installation
 * RabbitMq Cluster Installation
-* Windows Installation
+* Windows Server Installation
 
 
 #####Example Couchbase Installation
