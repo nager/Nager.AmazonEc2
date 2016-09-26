@@ -1,32 +1,12 @@
 Nager.AmazonEC2
 ==========
+Automatic cluster installation for multiple services in Amazon AWS Cloud. Unattended installation for Windows Server over powershell.
 
 #####Features
-* Couchbase Cluster Installation
-* Elasticsearch Cluster Installation
-* RabbitMq Cluster Installation
-* Windows Server Installation
-
-
-#####Example Couchbase Community 4.1.0 Installation
-```cs
-		var accesskey = new AmazonAccessKey("accessKeyId", "secretKey");
-
-		var couchbase = new Couchbase(accesskey);
-
-		var clusterConfig = new CouchbaseClusterConfig();
-		clusterConfig.Prefix = "nager";
-		clusterConfig.KeyName = "my-secret-key";
-		clusterConfig.ClusterName = "Cluster1";
-		clusterConfig.NodeInstance = AmazonInstance.t2_Small;
-		clusterConfig.NodeCount = 2;
-		clusterConfig.AdminUsername = "Administrator";
-		clusterConfig.AdminUsername = "$ecurePassword";
-
-		var installResults = couchbase.InstallCluster(clusterConfig);
-
-		var managementUrl = couchbase.GetManagementUrl(installResults);
-```
+* Elasticsearch Cluster Installation (Elasticsearch 2.x - CentOS 7)
+* RabbitMq Cluster Installation (3.6.5-1 - CentOS 7)
+* Couchbase Cluster Installation (Community 4.1.0 - CentOS 7)
+* Windows Server Installation (2012 R2)
 
 #####Example RabbitMq 3.6.5-1 Installation
 ```cs
@@ -70,6 +50,26 @@ Nager.AmazonEC2
 		var installResults = rabbitmq.InstallCluster(clusterConfig);
 
 		var managementUrl = rabbitmq.GetManagementUrl(installResults);
+```
+
+#####Example Couchbase Community 4.1.0 Installation
+```cs
+		var accesskey = new AmazonAccessKey("accessKeyId", "secretKey");
+
+		var couchbase = new Couchbase(accesskey);
+
+		var clusterConfig = new CouchbaseClusterConfig();
+		clusterConfig.Prefix = "nager";
+		clusterConfig.KeyName = "my-secret-key";
+		clusterConfig.ClusterName = "Cluster1";
+		clusterConfig.NodeInstance = AmazonInstance.t2_Small;
+		clusterConfig.NodeCount = 2;
+		clusterConfig.AdminUsername = "Administrator";
+		clusterConfig.AdminUsername = "$ecurePassword";
+
+		var installResults = couchbase.InstallCluster(clusterConfig);
+
+		var managementUrl = couchbase.GetManagementUrl(installResults);
 ```
 
 #####Example Windows Server 2012 R2 Installation
