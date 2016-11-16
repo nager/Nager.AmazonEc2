@@ -1,4 +1,5 @@
-﻿using Amazon.EC2;
+﻿using Amazon;
+using Amazon.EC2;
 using Amazon.EC2.Model;
 using log4net;
 using Nager.AmazonEc2.Helper;
@@ -76,17 +77,35 @@ namespace Nager.AmazonEc2.Project
             return createSecurityGroupResponse.GroupId;
         }
 
-        public WindowsServer(AmazonAccessKey accessKey)
+        public WindowsServer(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint)
         {
-            this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, Amazon.RegionEndpoint.EUWest1);
+            this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, regionEnpoint);
+        }
+
+        public string GetImageId()
+        {
+            var filterOwner = new Filter("owner-id", new List<string> { "801119661308" }); //amazon
+            var filterPlatform = new Filter("platform", new List<string> { "windows" });
+            var filterName = new Filter("name", new List<string> { "Windows_Server-2012-R2_RTM-English-64Bit-Base" });
+
+            var describeImagesRequest = new DescribeImagesRequest() { Filters = new List<Filter>() { filterOwner, filterPlatform, filterName } };
+            var response = this._client.DescribeImages(describeImagesRequest);
+            if (response.HttpStatusCode != HttpStatusCode.OK)
+            {
+                Log.Error("GetImageId - Cannot get the ami id");
+            }
+
+            return response.Images?.OrderByDescending(o => o.CreationDate).Select(o => o.ImageId).FirstOrDefault();
         }
 
         public InstallResult Install(AmazonInstance amazonInstance, string name, string securityGroupId, string keyName, IInstallScript installScript)
         {
+            var imageId = this.GetImageId();
+
             var instanceInfo = InstanceInfoHelper.GetInstanceInfo(amazonInstance);
 
             var instanceRequest = new RunInstancesRequest();
-            instanceRequest.ImageId = "ami-a8592cdb"; //windows server 2012 r2 base
+            instanceRequest.ImageId = imageId;
             instanceRequest.InstanceType = instanceInfo.InstanceType;
             instanceRequest.MinCount = 1;
             instanceRequest.MaxCount = 1;
