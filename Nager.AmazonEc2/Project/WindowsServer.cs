@@ -59,13 +59,15 @@ namespace Nager.AmazonEc2.Project
 
             foreach (var port in ports)
             {
-                var ipPermissionPort = new IpPermission()
+                var ipPermission = new IpPermission()
                 {
                     IpProtocol = "tcp",
                     FromPort = port,
                     ToPort = port,
                     IpRanges = new List<string>() { "0.0.0.0/0" }
                 };
+
+                ingressRequest.IpPermissions.Add(ipPermission);
             }
 
             var ingressResponse = this._client.AuthorizeSecurityGroupIngress(ingressRequest);
