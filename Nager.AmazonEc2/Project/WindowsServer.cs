@@ -57,17 +57,20 @@ namespace Nager.AmazonEc2.Project
             ingressRequest.IpPermissions = new List<IpPermission>();
             ingressRequest.IpPermissions.Add(ipPermissionRdp);
 
-            foreach (var port in ports)
+            if (ports != null)
             {
-                var ipPermission = new IpPermission()
+                foreach (var port in ports)
                 {
-                    IpProtocol = "tcp",
-                    FromPort = port,
-                    ToPort = port,
-                    IpRanges = new List<string>() { "0.0.0.0/0" }
-                };
+                    var ipPermission = new IpPermission()
+                    {
+                        IpProtocol = "tcp",
+                        FromPort = port,
+                        ToPort = port,
+                        IpRanges = new List<string>() { "0.0.0.0/0" }
+                    };
 
-                ingressRequest.IpPermissions.Add(ipPermission);
+                    ingressRequest.IpPermissions.Add(ipPermission);
+                }
             }
 
             var ingressResponse = this._client.AuthorizeSecurityGroupIngress(ingressRequest);
