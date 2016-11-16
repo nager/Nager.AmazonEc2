@@ -6,5 +6,6 @@
         public int CpuCount { get; set; }
         public double Memory { get; set; }
         public bool LocalStorage { get; set; }
+        public string AvailabilityZone { get; set; }
     }
 }

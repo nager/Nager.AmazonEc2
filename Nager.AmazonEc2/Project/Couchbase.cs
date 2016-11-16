@@ -1,4 +1,5 @@
-﻿using Amazon.EC2;
+﻿using Amazon;
+using Amazon.EC2;
 using Amazon.EC2.Model;
 using log4net;
 using Nager.AmazonEc2.Helper;
@@ -16,9 +17,9 @@ namespace Nager.AmazonEc2.Project
         private static readonly ILog Log = LogManager.GetLogger(typeof(Couchbase));
         private AmazonEC2Client _client;
 
-        public Couchbase(AmazonAccessKey accessKey)
+        public Couchbase(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint)
         {
-            this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, Amazon.RegionEndpoint.EUWest1);
+            this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, regionEnpoint);
         }
 
         private string CreateSecurityGroup(string prefix)
@@ -225,6 +226,10 @@ namespace Nager.AmazonEc2.Project
             instanceRequest.MaxCount = 1;
             instanceRequest.KeyName = keyName;
             instanceRequest.SecurityGroupIds = new List<string>() { securityGroupId };
+            if (!string.IsNullOrEmpty(instanceInfo.AvailabilityZone))
+            {
+                instanceRequest.Placement = new Placement(instanceInfo.AvailabilityZone);
+            }
 
             var blockDeviceMappingSystem = new BlockDeviceMapping
             {
@@ -303,8 +308,8 @@ namespace Nager.AmazonEc2.Project
             //items.Add("rpm -i couchbase-server-enterprise-4.5.0-centos7.x86_64.rpm");
 
             //Install Couchbase Community
-            installScript.Add("curl -O -s http://packages.couchbase.com/releases/4.1.0/couchbase-server-community-4.1.0-centos7.x86_64.rpm");
-            installScript.Add("rpm -i couchbase-server-community-4.1.0-centos7.x86_64.rpm");
+            installScript.Add("curl -O -s http://packages.couchbase.com/releases/4.1.1/couchbase-server-community-4.1.1-centos7.x86_64.rpm");
+            installScript.Add("rpm -i couchbase-server-community-4.1.1-centos7.x86_64.rpm");
 
             installScript.Add("mkdir /data/couchbase");
             installScript.Add("chown couchbase:couchbase /data/couchbase -R");
