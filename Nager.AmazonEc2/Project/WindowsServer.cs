@@ -86,7 +86,7 @@ namespace Nager.AmazonEc2.Project
         {
             var filterOwner = new Filter("owner-id", new List<string> { "801119661308" }); //amazon
             var filterPlatform = new Filter("platform", new List<string> { "windows" });
-            var filterName = new Filter("name", new List<string> { "Windows_Server-2012-R2_RTM-English-64Bit-Base" });
+            var filterName = new Filter("name", new List<string> { "Windows_Server-2012-R2_RTM-English-64Bit-Base*" });
 
             var describeImagesRequest = new DescribeImagesRequest() { Filters = new List<Filter>() { filterOwner, filterPlatform, filterName } };
             var response = this._client.DescribeImages(describeImagesRequest);
@@ -101,6 +101,11 @@ namespace Nager.AmazonEc2.Project
         public InstallResult Install(AmazonInstance amazonInstance, string name, string securityGroupId, string keyName, IInstallScript installScript)
         {
             var imageId = this.GetImageId();
+            if (imageId == null)
+            {
+                Log.Error("Install - imageId is null");
+                return new InstallResult() { Successful = false };
+            }
 
             var instanceInfo = InstanceInfoHelper.GetInstanceInfo(amazonInstance);
 
