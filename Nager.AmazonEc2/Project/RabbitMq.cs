@@ -1,4 +1,5 @@
-﻿using Amazon.EC2;
+﻿using Amazon;
+using Amazon.EC2;
 using Amazon.EC2.Model;
 using log4net;
 using Nager.AmazonEc2.Helper;
@@ -16,9 +17,9 @@ namespace Nager.AmazonEc2.Project
         private static readonly ILog Log = LogManager.GetLogger(typeof(RabbitMq));
         private AmazonEC2Client _client;
 
-        public RabbitMq(AmazonAccessKey accessKey)
+        public RabbitMq(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint)
         {
-            this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, Amazon.RegionEndpoint.EUWest1);
+            this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, regionEnpoint);
         }
 
         private string CreateSecurityGroup(string prefix)
