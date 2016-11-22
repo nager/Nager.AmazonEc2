@@ -1,4 +1,5 @@
-﻿using Nager.AmazonEc2.Model;
+﻿using Amazon;
+using Nager.AmazonEc2.Model;
 using Nager.AmazonEc2.Project;
 
 namespace Nager.AmazonEc2.TestConsole
@@ -9,7 +10,7 @@ namespace Nager.AmazonEc2.TestConsole
         {
             var accesskey = new AmazonAccessKey("accessKeyId", "secretKey");
 
-            var couchbase = new Couchbase(accesskey);
+            var couchbase = new Couchbase(accesskey, RegionEndpoint.EUCentral1);
 
             var clusterConfig = new CouchbaseClusterConfig();
             clusterConfig.Prefix = "nager";

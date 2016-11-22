@@ -203,13 +203,15 @@ namespace Nager.AmazonEc2.Project
 
             var installResults = new List<InstallResult>();
 
-            var installScript = this.CreateInstallScript(null, clusterConfig.AdminUsername, clusterConfig.AdminPassword, instanceInfo);
+            var installScript = this.CreateInstallScript();
+            installScript = this.CreateConfigurationScript(installScript, null, clusterConfig.AdminUsername, clusterConfig.AdminPassword, instanceInfo);
             var result = this.InstallNode(instanceInfo, $"{clusterConfig.ClusterName}.node0", securityGroupId, clusterConfig.KeyName, installScript);
             installResults.Add(result);
 
             for (var i = 1; i < clusterConfig.NodeCount; i++)
             {
-                installScript = this.CreateInstallScript(result.PrivateIpAddress, clusterConfig.AdminUsername, clusterConfig.AdminPassword, instanceInfo);
+                installScript = this.CreateInstallScript();
+                installScript = this.CreateConfigurationScript(installScript, result.PrivateIpAddress, clusterConfig.AdminUsername, clusterConfig.AdminPassword, instanceInfo);
                 var resultSlave = this.InstallNode(instanceInfo, $"{clusterConfig.ClusterName}.node{i}", securityGroupId, clusterConfig.KeyName, installScript);
                 installResults.Add(resultSlave);
             }
@@ -282,7 +284,7 @@ namespace Nager.AmazonEc2.Project
             return installResult;
         }
 
-        public CentOSInstallScript CreateInstallScript(string clusterIpAddress, string adminUsername, string adminPassword, AmazonInstanceInfo instanceInfo)
+        public CentOSInstallScript CreateInstallScript()
         {
             var installScript = new CentOSInstallScript();
 
@@ -327,6 +329,11 @@ namespace Nager.AmazonEc2.Project
             //Change data path
             installScript.Add("/opt/couchbase/bin/couchbase-cli node-init -c localhost:8091 -u Administrator -p password --node-init-data-path=/data/couchbase");
 
+            return installScript;
+        }
+
+        public CentOSInstallScript CreateConfigurationScript(CentOSInstallScript installScript, string clusterIpAddress, string adminUsername, string adminPassword, AmazonInstanceInfo instanceInfo)
+        {
             if (String.IsNullOrEmpty(clusterIpAddress))
             {
                 var totalMemory = instanceInfo.Memory * 1000;
