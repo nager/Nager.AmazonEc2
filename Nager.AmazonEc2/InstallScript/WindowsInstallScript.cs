@@ -94,6 +94,7 @@ namespace Nager.AmazonEc2.InstallScript
             return true;
         }
 
+        public bool RunExecutable(string url, string parameter)
         {
             if (String.IsNullOrEmpty(url))
             {
