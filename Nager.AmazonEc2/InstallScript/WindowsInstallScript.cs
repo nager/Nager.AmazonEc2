@@ -19,6 +19,12 @@ namespace Nager.AmazonEc2.InstallScript
             return Convert.ToBase64String(Encoding.UTF8.GetBytes(sb.ToString()));
         }
 
+        public bool SetHostname(string hostname)
+        {
+            base.Add($"Rename-Computer -NewName \"{hostname}\" -Restart");
+            return true;
+        }
+
         public bool SetAdministratorPassword(string password)
         {
             if (!this.IsComplexPassword(password))
@@ -84,6 +90,23 @@ namespace Nager.AmazonEc2.InstallScript
             base.Add($"$output = \"$PSScriptRoot\\{filename}\"");
             base.Add("(New-Object System.Net.WebClient).DownloadFile($url, $output)");
             base.Add($"Start-Process \"$PSScriptRoot\\{filename}\" /qn -Wait");
+
+            return true;
+        }
+
+        {
+            if (String.IsNullOrEmpty(url))
+            {
+                return false;
+            }
+
+            var uri = new Uri(url);
+            var filename = Path.GetFileName(uri.LocalPath);
+
+            base.Add($"$url = \"{url}\"");
+            base.Add($"$output = \"$PSScriptRoot\\{filename}\"");
+            base.Add("(New-Object System.Net.WebClient).DownloadFile($url, $output)");
+            base.Add($"Start-Process \"$PSScriptRoot\\{filename}\" {parameter} -Wait");
 
             return true;
         }
