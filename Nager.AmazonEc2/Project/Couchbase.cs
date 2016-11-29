@@ -222,7 +222,7 @@ namespace Nager.AmazonEc2.Project
         public InstallResult InstallNode(AmazonInstanceInfo instanceInfo, string name, string securityGroupId, string keyName, IInstallScript installScript)
         {
             var instanceRequest = new RunInstancesRequest();
-            instanceRequest.ImageId = "ami-7abd0209"; //centos
+            instanceRequest.ImageId = "ami-9bf712f4"; //centos (CentOS Linux 7 x86_64 HVM EBS 1602)
             instanceRequest.InstanceType = instanceInfo.InstanceType;
             instanceRequest.MinCount = 1;
             instanceRequest.MaxCount = 1;

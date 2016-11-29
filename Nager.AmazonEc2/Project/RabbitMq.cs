@@ -12,14 +12,13 @@ using System.Net;
 
 namespace Nager.AmazonEc2.Project
 {
-    public class RabbitMq
+    public class RabbitMq : ProjectBase
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(RabbitMq));
-        private AmazonEC2Client _client;
+        //private AmazonEC2Client _client;
 
-        public RabbitMq(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint)
+        public RabbitMq(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint) : base(accessKey, regionEnpoint)
         {
-            this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, regionEnpoint);
         }
 
         private string CreateSecurityGroup(string prefix)
@@ -29,7 +28,7 @@ namespace Nager.AmazonEc2.Project
 
             try
             {
-                var result = this._client.DescribeSecurityGroups(new DescribeSecurityGroupsRequest() { GroupNames = new List<string> { name } });
+                var result = base.Client.DescribeSecurityGroups(new DescribeSecurityGroupsRequest() { GroupNames = new List<string> { name } });
                 if (result.HttpStatusCode == HttpStatusCode.OK)
                 {
                     return result.SecurityGroups.Select(o => o.GroupId).FirstOrDefault();
@@ -44,7 +43,7 @@ namespace Nager.AmazonEc2.Project
             }
 
             var createSecurityGroupRequest = new CreateSecurityGroupRequest(name, description);
-            var createSecurityGroupResponse = this._client.CreateSecurityGroup(createSecurityGroupRequest);
+            var createSecurityGroupResponse = base.Client.CreateSecurityGroup(createSecurityGroupRequest);
 
             if (createSecurityGroupResponse.HttpStatusCode != HttpStatusCode.OK)
             {
@@ -127,7 +126,7 @@ namespace Nager.AmazonEc2.Project
             ingressRequest.IpPermissions.Add(ipPermissionMqtt2);
             ingressRequest.IpPermissions.Add(ipPermissionSsh);
 
-            var ingressResponse = this._client.AuthorizeSecurityGroupIngress(ingressRequest);
+            var ingressResponse = base.Client.AuthorizeSecurityGroupIngress(ingressRequest);
             if (ingressResponse.HttpStatusCode != HttpStatusCode.OK)
             {
                 return null;
@@ -138,7 +137,7 @@ namespace Nager.AmazonEc2.Project
 
         public string GetManagementUrl(List<InstallResult> installResults)
         {
-            var results = this._client.DescribeInstances(new DescribeInstancesRequest() { InstanceIds = new List<string> { installResults.First().InstanceId } });
+            var results = base.Client.DescribeInstances(new DescribeInstancesRequest() { InstanceIds = new List<string> { installResults.First().InstanceId } });
             var publicUrl = results.Reservations[0]?.Instances[0]?.PublicDnsName;
 
             return $"http://{publicUrl}:15672/";
@@ -146,6 +145,8 @@ namespace Nager.AmazonEc2.Project
 
         public List<InstallResult> InstallCluster(RabbitMqClusterConfig clusterConfig)
         {
+            var availabilityZones = base.GetAvailabilityZones();
+
             Log.Debug("InstallCluster");
 
             var securityGroupId = this.CreateSecurityGroup(clusterConfig.Prefix);
@@ -154,13 +155,15 @@ namespace Nager.AmazonEc2.Project
             var installScript = this.GetInstallScript(hash, null, instanceInfo, clusterConfig.AdminUsername, clusterConfig.AdminPassword);
 
             var installResults = new List<InstallResult>();
+            instanceInfo.AvailabilityZone = availabilityZones.First();
             var result = this.InstallNode(instanceInfo, $"{clusterConfig.ClusterName}.node0", securityGroupId, clusterConfig.KeyName, installScript);
             installResults.Add(result);
 
             for (var i = 1; i < clusterConfig.NodeCount; i++)
             {
+                instanceInfo.AvailabilityZone = availabilityZones.Skip(1).First();
                 installScript = this.GetInstallScript(hash, result.PrivateIpAddress, instanceInfo, clusterConfig.AdminUsername, clusterConfig.AdminPassword);
-                var resultSlave = this.InstallNode(instanceInfo, $"{clusterConfig.ClusterName}.node0", securityGroupId, clusterConfig.KeyName, installScript);
+                var resultSlave = this.InstallNode(instanceInfo, $"{clusterConfig.ClusterName}.node{i}", securityGroupId, clusterConfig.KeyName, installScript);
                 installResults.Add(resultSlave);
             }
 
@@ -169,13 +172,24 @@ namespace Nager.AmazonEc2.Project
 
         public InstallResult InstallNode(AmazonInstanceInfo instanceInfo, string nodeName, string securityGroupId, string keyName, IInstallScript installScript)
         {
+            var imageId = base.GetImageId("679593333241", "CentOS Linux 7 x86_64 HVM EBS 1602*");
+            if (imageId == null)
+            {
+                Log.Error("InstallNode - imageId is null");
+                return new InstallResult() { Successful = false };
+            }
+
             var instanceRequest = new RunInstancesRequest();
-            instanceRequest.ImageId = "ami-7abd0209"; //centos
+            instanceRequest.ImageId = imageId;
             instanceRequest.InstanceType = instanceInfo.InstanceType;
             instanceRequest.MinCount = 1;
             instanceRequest.MaxCount = 1;
             instanceRequest.KeyName = keyName;
             instanceRequest.SecurityGroupIds = new List<string>() { securityGroupId };
+            if (!string.IsNullOrEmpty(instanceInfo.AvailabilityZone))
+            {
+                instanceRequest.Placement = new Placement(instanceInfo.AvailabilityZone);
+            }
 
             var blockDeviceMappingSystem = new BlockDeviceMapping
             {
@@ -207,7 +221,7 @@ namespace Nager.AmazonEc2.Project
             //</var/log/cloud-init-output.log>
             instanceRequest.UserData = installScript.Create();
 
-            var response = this._client.RunInstances(instanceRequest);
+            var response = base.Client.RunInstances(instanceRequest);
 
             var instance = response.Reservation.Instances.First();
 
@@ -217,7 +231,7 @@ namespace Nager.AmazonEc2.Project
             installResult.PrivateIpAddress = instance.PrivateIpAddress;
 
             var tags = new List<Tag> { new Tag("Name", nodeName) };
-            this._client.CreateTags(new CreateTagsRequest(new List<string>() { instance.InstanceId }, tags));
+            base.Client.CreateTags(new CreateTagsRequest(new List<string>() { instance.InstanceId }, tags));
 
             if (response.HttpStatusCode == HttpStatusCode.OK)
             {

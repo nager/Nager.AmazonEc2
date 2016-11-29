@@ -70,6 +70,7 @@
     <Compile Include="Model\RabbitMqClusterConfig.cs" />
     <Compile Include="Project\Couchbase.cs" />
     <Compile Include="Project\Elasticsearch.cs" />
+    <Compile Include="Project\ProjectBase.cs" />
     <Compile Include="Project\RabbitMq.cs" />
     <Compile Include="Project\WindowsServer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
