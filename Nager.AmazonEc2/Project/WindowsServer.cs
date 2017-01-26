@@ -87,11 +87,23 @@ namespace Nager.AmazonEc2.Project
             this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, regionEnpoint);
         }
 
-        public string GetImageId()
+        public string GetImageId(WindowsVersion windowsVersion)
         {
             var filterOwner = new Filter("owner-id", new List<string> { "801119661308" }); //amazon
             var filterPlatform = new Filter("platform", new List<string> { "windows" });
-            var filterName = new Filter("name", new List<string> { "Windows_Server-2012-R2_RTM-English-64Bit-Base*" });
+
+            Filter filterName;
+            switch (windowsVersion)
+            {
+                case WindowsVersion.V2012:
+                    filterName = new Filter("name", new List<string> { "Windows_Server-2012-R2_RTM-English-64Bit-Base*" });
+                    break;
+                case WindowsVersion.V2016:
+                    filterName = new Filter("name", new List<string> { "Windows_Server-2016-English-Full-Base*" });
+                    break;
+                default:
+                    return null;
+            }
 
             var describeImagesRequest = new DescribeImagesRequest() { Filters = new List<Filter>() { filterOwner, filterPlatform, filterName } };
             var response = this._client.DescribeImages(describeImagesRequest);
@@ -103,9 +115,9 @@ namespace Nager.AmazonEc2.Project
             return response.Images?.OrderByDescending(o => o.CreationDate).Select(o => o.ImageId).FirstOrDefault();
         }
 
-        public InstallResult Install(AmazonInstance amazonInstance, string name, string securityGroupId, string keyName, IInstallScript installScript)
+        public InstallResult Install(AmazonInstance amazonInstance, string name, string securityGroupId, string keyName, IInstallScript installScript, WindowsVersion windowsVersion)
         {
-            var imageId = this.GetImageId();
+            var imageId = this.GetImageId(windowsVersion);
             if (imageId == null)
             {
                 Log.Error("Install - imageId is null");
