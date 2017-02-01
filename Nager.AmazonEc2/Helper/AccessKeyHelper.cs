@@ -69,7 +69,7 @@ namespace Nager.AmazonEc2.Helper
                     }
                 }
 
-                if (String.IsNullOrEmpty(policyArn))
+                if (string.IsNullOrEmpty(policyArn))
                 {
                     var policyRequest = new CreatePolicyRequest();
                     policyRequest.PolicyName = $"{prefix}.ElasticsearchDiscovery";

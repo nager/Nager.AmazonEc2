@@ -307,7 +307,7 @@ namespace Nager.AmazonEc2.Project
             installScript.Add("service rabbitmq-server start");
 
             //RabbitMQ - User Configuration
-            if (String.IsNullOrEmpty(clusterNodeIpAddress))
+            if (string.IsNullOrEmpty(clusterNodeIpAddress))
             {
                 installScript.Add($"rabbitmqctl add_user {adminUsername} {adminPassword}");
                 installScript.Add($"rabbitmqctl set_permissions {adminUsername} \".*\" \".*\" \".*\"");
@@ -315,7 +315,7 @@ namespace Nager.AmazonEc2.Project
             }
 
             //Cluster Add
-            if (!String.IsNullOrEmpty(clusterNodeIpAddress))
+            if (!string.IsNullOrEmpty(clusterNodeIpAddress))
             {
                 var ip = clusterNodeIpAddress.Replace('.', '-');
                 var clusterNode = $"rabbit@ip-{ip}";

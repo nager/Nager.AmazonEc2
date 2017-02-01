@@ -19,9 +19,17 @@ namespace Nager.AmazonEc2.InstallScript
             return Convert.ToBase64String(Encoding.UTF8.GetBytes(sb.ToString()));
         }
 
-        public bool SetHostname(string hostname)
+        public bool SetHostname(string hostname, bool restart = true)
         {
-            base.Add($"Rename-Computer -NewName \"{hostname}\" -Restart");
+            if (restart)
+            {
+                base.Add($"Rename-Computer -NewName \"{hostname}\" -Restart");
+            }
+            else
+            {
+                base.Add($"Rename-Computer -NewName \"{hostname}\"");
+            }
+
             return true;
         }
 
@@ -78,7 +86,7 @@ namespace Nager.AmazonEc2.InstallScript
 
         public bool InstallMsi(string url)
         {
-            if (String.IsNullOrEmpty(url))
+            if (string.IsNullOrEmpty(url))
             {
                 return false;
             }
@@ -96,7 +104,7 @@ namespace Nager.AmazonEc2.InstallScript
 
         public bool RunExecutable(string url, string parameter)
         {
-            if (String.IsNullOrEmpty(url))
+            if (string.IsNullOrEmpty(url))
             {
                 return false;
             }
@@ -121,12 +129,12 @@ namespace Nager.AmazonEc2.InstallScript
 
         public bool ReplaceContentPart(string filePath, string search, string replace)
         {
-            if (String.IsNullOrEmpty(filePath))
+            if (string.IsNullOrEmpty(filePath))
             {
                 return false;
             }
 
-            if (String.IsNullOrEmpty(search))
+            if (string.IsNullOrEmpty(search))
             {
                 return false;
             }

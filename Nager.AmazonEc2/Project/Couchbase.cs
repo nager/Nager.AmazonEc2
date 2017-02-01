@@ -334,7 +334,7 @@ namespace Nager.AmazonEc2.Project
 
         public CentOSInstallScript CreateConfigurationScript(CentOSInstallScript installScript, string clusterIpAddress, string adminUsername, string adminPassword, AmazonInstanceInfo instanceInfo)
         {
-            if (String.IsNullOrEmpty(clusterIpAddress))
+            if (string.IsNullOrEmpty(clusterIpAddress))
             {
                 var totalMemory = instanceInfo.Memory * 1000;
                 //Allocating max 60% recommend

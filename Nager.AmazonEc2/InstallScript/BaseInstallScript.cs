@@ -9,7 +9,7 @@ namespace Nager.AmazonEc2.InstallScript
 
         public bool Add(string command)
         {
-            if (String.IsNullOrEmpty(command))
+            if (string.IsNullOrEmpty(command))
             {
                 return false;
             }

@@ -103,12 +103,12 @@ namespace Nager.AmazonEc2.Project
         {
             Log.Debug("InstallCluster");
 
-            if (String.IsNullOrEmpty(clusterConfig.DiscoveryAccessKey.AccessKeyId))
+            if (string.IsNullOrEmpty(clusterConfig.DiscoveryAccessKey.AccessKeyId))
             {
                 return null;
             }
 
-            if (String.IsNullOrEmpty(clusterConfig.DiscoveryAccessKey.SecretKey))
+            if (string.IsNullOrEmpty(clusterConfig.DiscoveryAccessKey.SecretKey))
             {
                 return null;
             }
