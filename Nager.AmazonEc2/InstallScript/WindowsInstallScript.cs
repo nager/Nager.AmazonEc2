@@ -95,7 +95,7 @@ namespace Nager.AmazonEc2.InstallScript
             return true;
         }
 
-        public bool InstallMsi(string url)
+        public bool InstallMsi(string url, string parameter = "/qn")
         {
             if (string.IsNullOrEmpty(url))
             {
@@ -108,7 +108,7 @@ namespace Nager.AmazonEc2.InstallScript
             base.Add($"$url = \"{url}\"");
             base.Add($"$output = \"$PSScriptRoot\\{filename}\"");
             base.Add("(New-Object System.Net.WebClient).DownloadFile($url, $output)");
-            base.Add($"Start-Process \"$PSScriptRoot\\{filename}\" /qn -Wait");
+            base.Add($"Start-Process -Wait -FilePath msiexec -ArgumentList \"/i $PSScriptRoot\\{filename} {parameter}\"");
 
             return true;
         }
@@ -127,6 +127,26 @@ namespace Nager.AmazonEc2.InstallScript
             base.Add($"$output = \"$PSScriptRoot\\{filename}\"");
             base.Add("(New-Object System.Net.WebClient).DownloadFile($url, $output)");
             base.Add($"Start-Process \"$PSScriptRoot\\{filename}\" {parameter} -Wait");
+
+            return true;
+        }
+
+        public bool SendSlackMessage(string webhookUrl, SlackMessage message)
+        {
+            if (message == null)
+            {
+                return false;
+            }
+
+            base.Add("Set-StrictMode -Version Latest");
+            base.Add("$payload = @{");
+            base.Add($"\"channel\" = \"{message.Channel}\";");
+            base.Add($"\"icon_emoji\" = \"{message.IconEmoji}\";");
+            base.Add($"\"username\" = \"{message.Username}\";");
+            base.Add($"\"text\" = \"{message.Text}\";");
+            base.Add("}");
+
+            base.Add($"Invoke-WebRequest -Uri \"{webhookUrl}\" -Method \"POST\" -Body (ConvertTo-Json -Compress -InputObject $payload)");
 
             return true;
         }

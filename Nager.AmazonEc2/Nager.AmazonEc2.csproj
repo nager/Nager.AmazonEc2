@@ -68,6 +68,7 @@
     <Compile Include="Model\ElasticsearchClusterConfig.cs" />
     <Compile Include="Model\InstallResult.cs" />
     <Compile Include="Model\RabbitMqClusterConfig.cs" />
+    <Compile Include="Model\SlackMessage.cs" />
     <Compile Include="Model\WindowsUpdateNotificationLevel.cs" />
     <Compile Include="Model\WindowsVersion.cs" />
     <Compile Include="Project\Couchbase.cs" />
