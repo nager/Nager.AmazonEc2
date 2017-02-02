@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Nager.AmazonEc2.Model;
+using System;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -82,6 +83,16 @@ namespace Nager.AmazonEc2.InstallScript
             }
 
             return false;
+        }
+
+        public bool ConfigureWindowsUpdate(WindowsUpdateNotificationLevel notificationLevel)
+        {
+            base.Add("$Updates = (New-Object -ComObject \"Microsoft.Update.AutoUpdate\").Settings");
+            base.Add($"$Updates.NotificationLevel = {(int)notificationLevel}");
+            base.Add("$Updates.Save()");
+            base.Add("$Updates.Refresh()");
+
+            return true;
         }
 
         public bool InstallMsi(string url)
