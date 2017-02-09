@@ -57,6 +57,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Helper\PowerShellHelper.cs" />
     <Compile Include="InstallScript\BaseInstallScript.cs" />
     <Compile Include="Helper\AccessKeyHelper.cs" />
     <Compile Include="Helper\InstanceInfoHelper.cs" />
