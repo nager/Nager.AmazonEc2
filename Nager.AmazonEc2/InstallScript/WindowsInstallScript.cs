@@ -151,6 +151,25 @@ namespace Nager.AmazonEc2.InstallScript
             return true;
         }
 
+        public bool GetPublicIpAddress(string variableName = "publicip")
+        {
+            base.Add($"${variableName} = Invoke-WebRequest -URI http://169.254.169.254/latest/meta-data/public-ipv4");
+            return true;
+        }
+
+        public bool CreateScheduledTask(string taskName, string filePath)
+        {
+            base.Add($"Unregister-ScheduledTask {taskName} -Confirm:$false");
+            base.Add($"$actionscript = \"-ExecutionPolicy Bypass -File {filePath}");
+            base.Add("$pstart = \"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\"");
+            base.Add("$action = New-ScheduledTaskAction -Execute $pstart -Argument $actionscript");
+            base.Add("$trigger = New-ScheduledTaskTrigger -AtStartup");
+            base.Add("$taskUserName = New-ScheduledTaskPrincipal -UserID \"NT AUTHORITY\\SYSTEM\" -LogonType ServiceAccount -RunLevel Highest");
+            base.Add($"Register-ScheduledTask -TaskName {taskName} -Principal $taskUserName -Action $action -Trigger $trigger");
+
+            return true;
+        }
+
         public bool DisableFirewall()
         {
             base.Add("Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False");
