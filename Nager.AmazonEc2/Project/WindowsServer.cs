@@ -151,7 +151,10 @@ namespace Nager.AmazonEc2.Project
             }
 
             //Install Process can check in this log file
+            //Windows 2012
             //<C:\Program Files\Amazon\Ec2ConfigService\Logs\Ec2ConfigLog.txt>
+            //Windows 2016
+            //<C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution.log>
             instanceRequest.UserData = installScript.Create();
 
             var response = this._client.RunInstances(instanceRequest);
