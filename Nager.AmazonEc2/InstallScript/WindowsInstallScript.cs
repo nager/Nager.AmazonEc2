@@ -160,7 +160,7 @@ namespace Nager.AmazonEc2.InstallScript
         public bool CreateScheduledTask(string taskName, string filePath)
         {
             base.Add($"Unregister-ScheduledTask {taskName} -Confirm:$false");
-            base.Add($"$actionscript = \"-ExecutionPolicy Bypass -File {filePath}");
+            base.Add($"$actionscript = \"-ExecutionPolicy Bypass -File {filePath}\"");
             base.Add("$pstart = \"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\"");
             base.Add("$action = New-ScheduledTaskAction -Execute $pstart -Argument $actionscript");
             base.Add("$trigger = New-ScheduledTaskTrigger -AtStartup");
