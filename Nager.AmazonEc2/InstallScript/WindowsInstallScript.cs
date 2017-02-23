@@ -113,6 +113,19 @@ namespace Nager.AmazonEc2.InstallScript
             return true;
         }
 
+        public bool AddWindowsFeature(params string[] features)
+        {
+            if (features == null)
+            {
+                return false;
+            }
+
+            base.Add("Import-Module ServerManager");
+            base.Add(string.Format($"Add-WindowsFeature {0}", string.Join(", ", features)));
+
+            return true;
+        }
+
         public bool RunExecutable(string url, string parameter)
         {
             if (string.IsNullOrEmpty(url))
@@ -128,32 +141,6 @@ namespace Nager.AmazonEc2.InstallScript
             base.Add("(New-Object System.Net.WebClient).DownloadFile($url, $output)");
             base.Add($"Start-Process \"$PSScriptRoot\\{filename}\" {parameter} -Wait");
 
-            return true;
-        }
-
-        public bool SendSlackMessage(string webhookUrl, SlackMessage message)
-        {
-            if (message == null)
-            {
-                return false;
-            }
-
-            base.Add("Set-StrictMode -Version Latest");
-            base.Add("$payload = @{");
-            base.Add($"\"channel\" = \"{message.Channel}\";");
-            base.Add($"\"icon_emoji\" = \"{message.IconEmoji}\";");
-            base.Add($"\"username\" = \"{message.Username}\";");
-            base.Add($"\"text\" = \"{message.Text}\";");
-            base.Add("}");
-
-            base.Add($"Invoke-WebRequest -Uri \"{webhookUrl}\" -Method \"POST\" -Body (ConvertTo-Json -Compress -InputObject $payload)");
-
-            return true;
-        }
-
-        public bool GetPublicIpAddress(string variableName = "publicip")
-        {
-            base.Add($"${variableName} = Invoke-WebRequest -URI http://169.254.169.254/latest/meta-data/public-ipv4");
             return true;
         }
 
