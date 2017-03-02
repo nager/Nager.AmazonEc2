@@ -12,14 +12,12 @@ using System.Net;
 
 namespace Nager.AmazonEc2.Project
 {
-    public class Elasticsearch
+    public class Elasticsearch : ProjectBase
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(Elasticsearch));
-        private AmazonEC2Client _client;
 
-        public Elasticsearch(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint)
+        public Elasticsearch(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint) : base(accessKey, regionEnpoint)
         {
-            this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, regionEnpoint);
         }
 
         private string CreateSecurityGroup(string prefix)
@@ -29,7 +27,7 @@ namespace Nager.AmazonEc2.Project
 
             try
             {
-                var result = this._client.DescribeSecurityGroups(new DescribeSecurityGroupsRequest() { GroupNames = new List<string> { name } });
+                var result = base.Client.DescribeSecurityGroups(new DescribeSecurityGroupsRequest() { GroupNames = new List<string> { name } });
                 if (result.HttpStatusCode == HttpStatusCode.OK)
                 {
                     return result.SecurityGroups.Select(o => o.GroupId).FirstOrDefault();
@@ -44,7 +42,7 @@ namespace Nager.AmazonEc2.Project
             }
 
             var createSecurityGroupRequest = new CreateSecurityGroupRequest(name, description);
-            var createSecurityGroupResponse = this._client.CreateSecurityGroup(createSecurityGroupRequest);
+            var createSecurityGroupResponse = base.Client.CreateSecurityGroup(createSecurityGroupRequest);
 
             if (createSecurityGroupResponse.HttpStatusCode != HttpStatusCode.OK)
             {
@@ -82,7 +80,7 @@ namespace Nager.AmazonEc2.Project
             ingressRequest.IpPermissions.Add(ipPermissionTransport);
             ingressRequest.IpPermissions.Add(ipPermissionSsh);
 
-            var ingressResponse = this._client.AuthorizeSecurityGroupIngress(ingressRequest);
+            var ingressResponse = base.Client.AuthorizeSecurityGroupIngress(ingressRequest);
             if (ingressResponse.HttpStatusCode != HttpStatusCode.OK)
             {
                 return null;
@@ -93,7 +91,7 @@ namespace Nager.AmazonEc2.Project
 
         public string GetManagementUrl(List<InstallResult> installResults)
         {
-            var results = this._client.DescribeInstances(new DescribeInstancesRequest() { InstanceIds = new List<string> { installResults.First().InstanceId } });
+            var results = base.Client.DescribeInstances(new DescribeInstancesRequest() { InstanceIds = new List<string> { installResults.First().InstanceId } });
             var publicUrl = results.Reservations[0]?.Instances[0]?.PublicDnsName;
 
             return $"http://{publicUrl}:9200/_plugin/hq/";
@@ -131,8 +129,19 @@ namespace Nager.AmazonEc2.Project
             for (var i = 0; i < clusterConfig.DataNodeCount; i++)
             {
                 var nodeName = $"{clusterConfig.ClusterName}.data{i}";
+<<<<<<< Updated upstream
                 var instanceInfo = InstanceInfoHelper.GetInstanceInfo(clusterConfig.MasterNodeInstance);
-                var installScript = this.CreateInstallScript(clusterConfig.ClusterName, nodeName, false, true, instanceInfo, clusterConfig.DiscoveryAccessKey, clusterConfig.MasterNodeCount);
+=======
+                var instanceInfo = InstanceInfoHelper.GetInstanceInfo(clusterConfig.DataNodeInstance);
+>>>>>>> Stashed changes
+
+                var prepareDataDisk = false;
+                if (!instanceInfo.LocalStorage)
+                {
+                    prepareDataDisk = true;
+                }
+
+                var installScript = this.CreateInstallScript(clusterConfig.ClusterName, nodeName, false, true, instanceInfo, clusterConfig.DiscoveryAccessKey, clusterConfig.MasterNodeCount, prepareDataDisk);
 
                 installResult = this.InstallNode(instanceInfo, clusterConfig.ClusterName, nodeName, securityGroupId, clusterConfig.KeyName, installScript);
                 installResults.Add(installResult);
@@ -153,45 +162,57 @@ namespace Nager.AmazonEc2.Project
 
         public InstallResult InstallNode(AmazonInstanceInfo instanceInfo, string clusterName, string name, string securityGroupId, string keyName, IInstallScript installScript)
         {
+            var imageId = base.GetImageId("679593333241", "CentOS Linux 7 x86_64 HVM EBS 1602*");
+            if (imageId == null)
+            {
+                Log.Error("InstallNode - imageId is null");
+                return new InstallResult() { Successful = false };
+            }
+
             var instanceRequest = new RunInstancesRequest();
-            instanceRequest.ImageId = "ami-7abd0209"; //centos
+            instanceRequest.ImageId = imageId; //centos
             instanceRequest.InstanceType = instanceInfo.InstanceType;
             instanceRequest.MinCount = 1;
             instanceRequest.MaxCount = 1;
             instanceRequest.KeyName = keyName;
             instanceRequest.SecurityGroupIds = new List<string>() { securityGroupId };
 
-            var blockDeviceMappingSystem = new BlockDeviceMapping
+            if (!instanceInfo.LocalStorage)
             {
-                DeviceName = "/dev/sda1",
-                Ebs = new EbsBlockDevice
+                var blockDeviceMappingSystem = new BlockDeviceMapping
                 {
-                    DeleteOnTermination = true,
-                    VolumeType = VolumeType.Gp2,
-                    VolumeSize = 12
-                }
-            };
+                    DeviceName = "/dev/sda1",
+                    Ebs = new EbsBlockDevice
+                    {
+                        DeleteOnTermination = true,
+                        VolumeType = VolumeType.Gp2,
+                        VolumeSize = 12
+                    }
+                };
 
-            var blockDeviceMappingData = new BlockDeviceMapping
-            {
-                DeviceName = "/dev/sda2",
-                Ebs = new EbsBlockDevice
+                var blockDeviceMappingData = new BlockDeviceMapping
                 {
-                    DeleteOnTermination = true,
-                    VolumeType = VolumeType.Io1,
-                    Iops = 100,
-                    VolumeSize = (int)Math.Ceiling(instanceInfo.Memory * 2)
-                }
-            };
+                    DeviceName = "/dev/sda2",
+                    Ebs = new EbsBlockDevice
+                    {
+                        DeleteOnTermination = true,
+                        VolumeType = VolumeType.Io1,
+                        Iops = 100,
+                        VolumeSize = (int)Math.Ceiling(instanceInfo.Memory * 2)
+                    }
+                };
 
             instanceRequest.BlockDeviceMappings.Add(blockDeviceMappingSystem);
             instanceRequest.BlockDeviceMappings.Add(blockDeviceMappingData);
+
+            }
+>>>>>>> Stashed changes
 
             //Install Process can check in this log file
             //</var/log/cloud-init-output.log>
             instanceRequest.UserData = installScript.Create();
 
-            var response = this._client.RunInstances(instanceRequest);
+            var response = base.Client.RunInstances(instanceRequest);
             var instance = response.Reservation.Instances.First();
 
             var installResult = new InstallResult();
@@ -200,7 +221,7 @@ namespace Nager.AmazonEc2.Project
             installResult.PrivateIpAddress = instance.PrivateIpAddress;
 
             var tags = new List<Tag> { new Tag("Name", name), new Tag("cluster", clusterName) };
-            this._client.CreateTags(new CreateTagsRequest(new List<string>() { instance.InstanceId }, tags));
+            base.Client.CreateTags(new CreateTagsRequest(new List<string>() { instance.InstanceId }, tags));
 
             if (response.HttpStatusCode == HttpStatusCode.OK)
             {
@@ -210,12 +231,19 @@ namespace Nager.AmazonEc2.Project
             return installResult;
         }
 
-        public CentOSInstallScript CreateInstallScript(string clusterName, string nodeName, bool masterNode, bool dataNode, AmazonInstanceInfo instanceInfo, AmazonAccessKey accessKey, int minimumMasterNodes)
+        public CentOSInstallScript CreateInstallScript(string clusterName, string nodeName, bool masterNode, bool dataNode, AmazonInstanceInfo instanceInfo, AmazonAccessKey accessKey, int minimumMasterNodes, bool prepareDataDisk = true)
         {
             var installScript = new CentOSInstallScript();
 
             //Prepare Data Disk
-            installScript.PrepareDataDisk();
+            if (prepareDataDisk)
+            {
+                installScript.PrepareDataDisk();
+            }
+            else
+            {
+                installScript.Add("mkdir /data");
+            }
 
             //Disable Swap
             //(A swappiness of 1 is better than 0, since on some kernel versions a swappiness of 0 can invoke the OOM-killer)
@@ -272,7 +300,7 @@ namespace Nager.AmazonEc2.Project
             installScript.Add("plugin.mandatory: cloud-aws");
             installScript.Add($"cloud.aws.access_key: {accessKey.AccessKeyId}");
             installScript.Add($"cloud.aws.secret_key: {accessKey.SecretKey}");
-            installScript.Add("cloud.aws.region: eu-west-1");
+            installScript.Add("cloud.aws.region: eu-central-1"); //TODO:Set the correct region
 
             installScript.Add("discovery.type: ec2");
             installScript.Add($"discovery.ec2.tag.cluster: {clusterName}");

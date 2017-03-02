@@ -11,5 +11,6 @@
         m4_xLarge,
         m4_2xLarge,
         m4_4xLarge,
+        m3_xlarge,
     }
 }

@@ -12,14 +12,12 @@ using System.Net;
 
 namespace Nager.AmazonEc2.Project
 {
-    public class Couchbase
+    public class Couchbase : ProjectBase
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(Couchbase));
-        private AmazonEC2Client _client;
 
-        public Couchbase(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint)
+        public Couchbase(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint) : base(accessKey, regionEnpoint)
         {
-            this._client = new AmazonEC2Client(accessKey.AccessKeyId, accessKey.SecretKey, regionEnpoint);
         }
 
         private string CreateSecurityGroup(string prefix)
@@ -29,7 +27,7 @@ namespace Nager.AmazonEc2.Project
 
             try
             {
-                var result = this._client.DescribeSecurityGroups(new DescribeSecurityGroupsRequest() { GroupNames = new List<string> { name } });
+                var result = base.Client.DescribeSecurityGroups(new DescribeSecurityGroupsRequest() { GroupNames = new List<string> { name } });
                 if (result.HttpStatusCode == HttpStatusCode.OK)
                 {
                     return result.SecurityGroups.Select(o => o.GroupId).FirstOrDefault();
@@ -44,7 +42,7 @@ namespace Nager.AmazonEc2.Project
             }
 
             var createSecurityGroupRequest = new CreateSecurityGroupRequest(name, description);
-            var createSecurityGroupResponse = this._client.CreateSecurityGroup(createSecurityGroupRequest);
+            var createSecurityGroupResponse = base.Client.CreateSecurityGroup(createSecurityGroupRequest);
 
             if (createSecurityGroupResponse.HttpStatusCode != HttpStatusCode.OK)
             {
@@ -177,7 +175,7 @@ namespace Nager.AmazonEc2.Project
             ingressRequest.IpPermissions.Add(ipPermissionNodeDataExchange);
             ingressRequest.IpPermissions.Add(ipPermissionSsh);
 
-            var ingressResponse = this._client.AuthorizeSecurityGroupIngress(ingressRequest);
+            var ingressResponse = base.Client.AuthorizeSecurityGroupIngress(ingressRequest);
             if (ingressResponse.HttpStatusCode != HttpStatusCode.OK)
             {
                 return null;
@@ -188,7 +186,7 @@ namespace Nager.AmazonEc2.Project
 
         public string GetManagementUrl(List<InstallResult> installResults)
         {
-            var results = this._client.DescribeInstances(new DescribeInstancesRequest() { InstanceIds = new List<string> { installResults.First().InstanceId } });
+            var results = base.Client.DescribeInstances(new DescribeInstancesRequest() { InstanceIds = new List<string> { installResults.First().InstanceId } });
             var publicUrl = results.Reservations[0]?.Instances[0]?.PublicDnsName;
 
             return $"http://{publicUrl}:8091/";
@@ -221,8 +219,15 @@ namespace Nager.AmazonEc2.Project
 
         public InstallResult InstallNode(AmazonInstanceInfo instanceInfo, string name, string securityGroupId, string keyName, IInstallScript installScript)
         {
+            var imageId = base.GetImageId("679593333241", "CentOS Linux 7 x86_64 HVM EBS 1602*");
+            if (imageId == null)
+            {
+                Log.Error("InstallNode - imageId is null");
+                return new InstallResult() { Successful = false };
+            }
+
             var instanceRequest = new RunInstancesRequest();
-            instanceRequest.ImageId = "ami-9bf712f4"; //centos (CentOS Linux 7 x86_64 HVM EBS 1602)
+            instanceRequest.ImageId = imageId;
             instanceRequest.InstanceType = instanceInfo.InstanceType;
             instanceRequest.MinCount = 1;
             instanceRequest.MaxCount = 1;
@@ -265,7 +270,7 @@ namespace Nager.AmazonEc2.Project
             //</var/log/cloud-init-output.log>
             instanceRequest.UserData = installScript.Create();
 
-            var response = this._client.RunInstances(instanceRequest);
+            var response = base.Client.RunInstances(instanceRequest);
             var instance = response.Reservation.Instances.First();
 
             var installResult = new InstallResult();
@@ -274,7 +279,7 @@ namespace Nager.AmazonEc2.Project
             installResult.PrivateIpAddress = instance.PrivateIpAddress;
 
             var tags = new List<Tag> { new Tag("Name", name) };
-            this._client.CreateTags(new CreateTagsRequest(new List<string>() { instance.InstanceId }, tags));
+            base.Client.CreateTags(new CreateTagsRequest(new List<string>() { instance.InstanceId }, tags));
 
             if (response.HttpStatusCode == HttpStatusCode.OK)
             {

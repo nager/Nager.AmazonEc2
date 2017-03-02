@@ -15,7 +15,6 @@ namespace Nager.AmazonEc2.Project
     public class RabbitMq : ProjectBase
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(RabbitMq));
-        //private AmazonEC2Client _client;
 
         public RabbitMq(AmazonAccessKey accessKey, RegionEndpoint regionEnpoint) : base(accessKey, regionEnpoint)
         {
