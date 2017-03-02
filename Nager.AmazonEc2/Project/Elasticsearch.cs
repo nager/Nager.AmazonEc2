@@ -129,11 +129,7 @@ namespace Nager.AmazonEc2.Project
             for (var i = 0; i < clusterConfig.DataNodeCount; i++)
             {
                 var nodeName = $"{clusterConfig.ClusterName}.data{i}";
-<<<<<<< Updated upstream
-                var instanceInfo = InstanceInfoHelper.GetInstanceInfo(clusterConfig.MasterNodeInstance);
-=======
                 var instanceInfo = InstanceInfoHelper.GetInstanceInfo(clusterConfig.DataNodeInstance);
->>>>>>> Stashed changes
 
                 var prepareDataDisk = false;
                 if (!instanceInfo.LocalStorage)
@@ -206,7 +202,6 @@ namespace Nager.AmazonEc2.Project
             instanceRequest.BlockDeviceMappings.Add(blockDeviceMappingData);
 
             }
->>>>>>> Stashed changes
 
             //Install Process can check in this log file
             //</var/log/cloud-init-output.log>
