@@ -2,6 +2,7 @@
 using Amazon.EC2;
 using Amazon.EC2.Model;
 using log4net;
+using Nager.AmazonEc2.Helper;
 using Nager.AmazonEc2.InstallScript;
 using Nager.AmazonEc2.Model;
 using System;
@@ -72,7 +73,7 @@ namespace Nager.AmazonEc2.Project
             return createSecurityGroupResponse.GroupId;
         }
 
-        public InstallResult Install(AmazonInstanceInfo instanceInfo, string name, string securityGroupId, string keyName, IInstallScript installScript)
+        public InstallResult Install(AmazonInstance amazonInstance, string name, string securityGroupId, string keyName, IInstallScript installScript)
         {
             var imageId = base.GetImageId("679593333241", "CentOS Linux 7 x86_64 HVM EBS 1602*");
             if (imageId == null)
@@ -80,6 +81,8 @@ namespace Nager.AmazonEc2.Project
                 Log.Error("InstallNode - imageId is null");
                 return new InstallResult() { Successful = false };
             }
+
+            var instanceInfo = InstanceInfoHelper.GetInstanceInfo(amazonInstance);
 
             var instanceRequest = new RunInstancesRequest();
             instanceRequest.ImageId = imageId;
