@@ -3,12 +3,9 @@ using Amazon.EC2;
 using Amazon.EC2.Model;
 using log4net;
 using Nager.AmazonEc2.Model;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Nager.AmazonEc2.Project
 {
