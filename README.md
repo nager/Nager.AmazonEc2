@@ -2,13 +2,13 @@ Nager.AmazonEC2
 ==========
 Automatic cluster installation for multiple services in Amazon AWS Cloud. Unattended installation for Windows Server over powershell.
 
-#####Features
+##### Features
 * Elasticsearch Cluster Installation (Elasticsearch 2.x - CentOS 7)
 * RabbitMq Cluster Installation (3.6.5-1 - CentOS 7)
 * Couchbase Cluster Installation (Community 4.1.0 - CentOS 7)
 * Windows Server Installation (2012 R2)
 
-#####Example RabbitMq 3.6.5-1 Installation
+##### Example RabbitMq 3.6.5-1 Installation
 ```cs
 	var accesskey = new AmazonAccessKey("accessKeyId", "secretKey");
 
@@ -28,7 +28,7 @@ Automatic cluster installation for multiple services in Amazon AWS Cloud. Unatte
 	var managementUrl = rabbitmq.GetManagementUrl(installResults);
 ```
 
-#####Example Elasticsearch 2.x Installation
+##### Example Elasticsearch 2.x Installation
 ```cs
 	var accesskey = new AmazonAccessKey("accessKeyId", "secretKey");
 	var discoveryAccessKey = AccessKeyHelper.CreateDiscoveryAccessKey(accesskey);
@@ -52,7 +52,7 @@ Automatic cluster installation for multiple services in Amazon AWS Cloud. Unatte
 	var managementUrl = rabbitmq.GetManagementUrl(installResults);
 ```
 
-#####Example Couchbase Community 4.1.0 Installation
+##### Example Couchbase Community 4.1.0 Installation
 ```cs
 	var accesskey = new AmazonAccessKey("accessKeyId", "secretKey");
 
@@ -72,7 +72,7 @@ Automatic cluster installation for multiple services in Amazon AWS Cloud. Unatte
 	var managementUrl = couchbase.GetManagementUrl(installResults);
 ```
 
-#####Example Windows Server 2012 R2 Installation
+##### Example Windows Server 2012 R2 Installation
 ```cs
 	var installScript = new WindowsInstallScript();
 	//Disable Windows Firewall
